@@ -218,3 +218,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+*.weights
+yolo_files/*.weights
+.venv/
+__pycache__/

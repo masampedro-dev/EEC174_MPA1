@@ -6,7 +6,51 @@ from collections import Counter, defaultdict
 import cv2
 import numpy as np
 
+#run this code within the terminal
+#python yolo_img_detector.py --weights yolo_files/yolov3.weights --cfg yolo_files/yolov3.cfg --labels yolo_files/coco.names --dir imgs/
 
+#should see a bunch of outputs like this,
+"""""
+Average Inference Time: 0.51770 seconds
+Total Number of Classes Detected: 19
+
+Total Detection Breakdown
+Apple: 4
+Banana: 1
+Bicycle: 1
+Bird: 1
+Car: 9
+Cat: 2
+Diningtable: 1
+Dog: 2
+Elephant: 2
+Fork: 1
+Giraffe: 1
+Horse: 4
+Kite: 4
+Knife: 1
+Motorbike: 1
+Orange: 14
+Person: 19
+Tie: 1
+Zebra: 8
+
+Per Image Breakdown
+beach.jpg => Kite: 4, Person: 9
+cat.jpg => Dog: 1
+cats.jpg => Cat: 2
+eagle.jpg => Bird: 1
+elephants.jpg => Elephant: 2
+farm.jpg => Dog: 1, Horse: 1, Person: 1
+forest.jpg => Giraffe: 1
+fruits.jpg => Apple: 4, Banana: 1, Diningtable: 1, Orange: 12
+horses.jpg => Horse: 3
+inception.jpg => Person: 6, Tie: 1
+kitchen.jpg => Fork: 1, Knife: 1, Orange: 2
+road.jpg => Bicycle: 1, Car: 8, Motorbike: 1, Person: 3
+sample.jpg => Car: 1
+savannah.jpg => Zebra: 8
+"""""
 def parse_arguments():
     parser = argparse.ArgumentParser(
         description="EEC174 Phase 1: YOLOv3 Object Detection on Images"

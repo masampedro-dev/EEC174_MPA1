@@ -7,7 +7,16 @@ import cv2
 import numpy as np
 
 #run this code within the terminal
-#python yolo_img_detector.py --weights yolo_files/yolov3.weights --cfg yolo_files/yolov3.cfg --labels yolo_files/coco.names --dir imgs/
+# Runs on the entire imgs/ folder using default model files
+
+#python yolo_img_detector.py
+
+# Runs on a single image (replace sample.jpg to something inside imgs folder)
+#python yolo_img_detector.py --image imgs/sample.jpg
+
+# Runs with isolated metric flags
+#python yolo_img_detector.py -inf
+#python yolo_img_detector.py -classes_all
 
 #should see a bunch of outputs like this,
 """""
@@ -51,6 +60,7 @@ road.jpg => Bicycle: 1, Car: 8, Motorbike: 1, Person: 3
 sample.jpg => Car: 1
 savannah.jpg => Zebra: 8
 """""
+#afterwards all the output images with the IOU boxes into the folder out_imgs
 def parse_arguments():
     parser = argparse.ArgumentParser(
         description="EEC174 Phase 1: YOLOv3 Object Detection on Images"
@@ -59,24 +69,24 @@ def parse_arguments():
     parser.add_argument(
         "--weights",
         type=str,
-        required=True,
+        default="yolo_files/yolov3.weights",
         help="Path to YOLOv3 weights file (e.g., yolo_files/yolov3.weights)",
     )
     parser.add_argument(
         "--cfg",
         type=str,
-        required=True,
-        help="Path to YOLOv3 configuration file (e.g., yolo_files/yolov3.cfg)",
+        default="yolo_files/yolov3.cfg",
+        help="Path to YOLOv3 configuration file (directory: yolo_files/yolov3.cfg)",
     )
     parser.add_argument(
         "--labels",
         type=str,
-        required=True,
-        help="Path to class labels file (e.g., coco.names)",
+        default="yolo_files/coco.names",
+        help="Path to class labels file (directory: coco.names)",
     )
 
     # Input image options (mutually exclusive group for inputs)
-    input_group = parser.add_mutually_exclusive_group(required=True)
+    input_group = parser.add_mutually_exclusive_group(required=False)
     input_group.add_argument(
         "--image",
         type=str,
@@ -86,6 +96,7 @@ def parse_arguments():
     input_group.add_argument(
         "--dir",
         type=str,
+        default="imgs",
         help="Path to directory containing input .jpg images",
     )
 
@@ -284,7 +295,7 @@ def main():
             per_image_breakdown[base_name][cls_name.capitalize()] += 1
 
     avg_inference_time = total_inference_time / len(image_paths)
-    unique_classes_count = len(all_detections_counter)
+    unique_classes_count = sum(all_detections_counter.values())
 
     # Handle selective flag output
     if args.inf and not args.classes_all:

@@ -1,62 +1,53 @@
 import argparse
 import os
-import sys
 import time
 import cv2
 import numpy as np
+from sort import Sort
 
-#run this code
-#python yolo_counter.py --weights yolo_files/yolov3.weights --cfg yolo_files/yolov3.cfg --labels yolo_files/coco.names --video mot_vid/MOTS20-09-raw.mp4 --output mot_vid/MOTS20-09-result.mp4
+#notes for others: to run the following script, run in terminal
+# 1. Run person tracking and counting using default model and video paths:
+#    python yolo_counter.py
+# 2. Run with explicit model, video, and output arguments:
+#    python yolo_counter.py --weights yolo_files/yolov3.weights --cfg yolo_files/yolov3.cfg --labels yolo_files/coco.names --video mot_vid/MOTS20-09-raw.mp4 --output mot_vid/MOTS20-09-result.mp4
 
-#then it will output a frame as the following,
-#Frame 0064 | Processing Time: 0.5401s | People Counted: 9
-#Frame 0065 | Processing Time: 0.4631s | People Counted: 9
-#etc. 
+#will show something like the following:
+#Frame 0524 | Processing Time: 0.3754s | People Counted: 107
+#Frame 0525 | Processing Time: 0.3811s | People Counted: 107
 
-#once it finishes, it will save the output video into mot_vid folder
-#will be saved as the same name except -result.mp4
+#Phase 2 Complete.
+#Total People Counted: 107
+#Annotated video saved as: mot_vid/MOTS20-09-result.mp4
 
-# Ensure sort.py can be imported from root or src/
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-try:
-    from sort import Sort
-except ImportError:
-    try:
-        from src.sort import Sort
-    except ImportError as e:
-        raise ImportError(
-            "Could not locate sort.py. Ensure sort.py is in the root directory or src/."
-        ) from e
-
+#finally got the code to correctly match the current people count to match the ID displayed
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
         description="EEC174 Phase 2: YOLOv3 Object Tracking & People Counter"
     )
-    # Required inputs per README
     parser.add_argument(
         "--weights",
         type=str,
-        required=True,
-        help="Path to YOLOv3 weights file (e.g., yolo_files/yolov3.weights)",
+        default="yolo_files/yolov3.weights",
+        help="Path to YOLOv3 weights file (default: yolo_files/yolov3.weights)",
     )
     parser.add_argument(
         "--cfg",
         type=str,
-        required=True,
-        help="Path to YOLOv3 configuration file (e.g., yolo_files/yolov3.cfg)",
+        default="yolo_files/yolov3.cfg",
+        help="Path to YOLOv3 configuration file (default: yolo_files/yolov3.cfg)",
     )
     parser.add_argument(
         "--labels",
         type=str,
-        required=True,
-        help="Path to class labels file (e.g., yolo_files/coco.names)",
+        default="yolo_files/coco.names",
+        help="Path to class labels file (default: yolo_files/coco.names)",
     )
     parser.add_argument(
         "--video",
         type=str,
-        required=True,
-        help="Path to input video (.mp4) (e.g., mot_vid/MOTS20-09-raw.mp4)",
+        default="mot_vid/MOTS20-09-raw.mp4",
+        help="Path to input video (default: mot_vid/MOTS20-09-raw.mp4)",
     )
     parser.add_argument(
         "--output",
@@ -64,21 +55,18 @@ def parse_arguments():
         default="mot_vid/MOTS20-09-result.mp4",
         help="Path to save annotated output video (default: mot_vid/MOTS20-09-result.mp4)",
     )
-
-    # Thresholds matching lab specifications
     parser.add_argument(
         "--conf_thresh",
         type=float,
         default=0.5,
-        help="Confidence threshold for detections (probability_minimum = 0.5)",
+        help="Confidence threshold for detections (default: 0.5)",
     )
     parser.add_argument(
         "--nms_thresh",
         type=float,
         default=0.3,
-        help="Non-Maximum Suppression threshold (threshold = 0.3)",
+        help="Non-Maximum Suppression threshold (default: 0.3)",
     )
-
     return parser.parse_args()
 
 
@@ -116,7 +104,7 @@ def main():
 
     os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
 
-    # 1. Load network and identify target 'person' class ID
+    # 1. Load network and identify 'person' class ID
     classes = load_classes(args.labels)
     person_class_id = classes.index("person") if "person" in classes else 0
     net, output_layers = load_model(args.cfg, args.weights)
@@ -135,9 +123,9 @@ def main():
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     out = cv2.VideoWriter(args.output, fourcc, fps, (width, height))
 
-    # 3. Initialize SORT tracker and unique count registry
+    # 3. Initialize SORT tracker and highest track ID counter
     mot_tracker = Sort(max_age=1, min_hits=3, iou_threshold=0.3)
-    unique_ids = set()
+    max_id = 0
     frame_number = 0
 
     print(f"Tracking started on: {args.video}")
@@ -161,7 +149,7 @@ def main():
         boxes = []
         confidences = []
 
-        # Parse detections and filter strictly for the 'person' class
+        # Parse detections and filter strictly for 'person'
         for output in layer_outputs:
             for detection in output:
                 scores = detection[5:]
@@ -182,7 +170,7 @@ def main():
             boxes, confidences, args.conf_thresh, args.nms_thresh
         )
 
-        # Convert NMS boxes [x, y, w, h] to SORT format [x1, y1, x2, y2, score]
+        # Convert [x, y, w, h] to SORT format [x1, y1, x2, y2, score]
         dets_for_sort = []
         if len(indices) > 0:
             for i in np.array(indices).flatten():
@@ -200,17 +188,17 @@ def main():
         # Update SORT tracker
         trackers = mot_tracker.update(dets_array)
 
-      # Draw tracker bounding boxes and numeric IDs 
+        # Draw yellow bounding boxes and numeric track IDs
         for d in trackers:
             x1, y1, x2, y2, track_id = d
             track_id = int(track_id)
-            unique_ids.add(track_id)
+            max_id = max(max_id, track_id)
 
             cv2.rectangle(
                 frame,
                 (int(x1), int(y1)),
                 (int(x2), int(y2)),
-                (0, 255, 255),
+                (0, 255, 255),  # Yellow in BGR
                 2,
             )
             cv2.putText(
@@ -219,33 +207,35 @@ def main():
                 (int(x1), max(int(y1) - 6, 15)),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.55,
-                (0, 255, 255),
+                (0, 255, 255),  # Yellow in BGR
                 2,
             )
 
-        # Draw updated cumulative person count overlay
-     
+        # Draw centered green cumulative person count overlay
         cv2.putText(
             frame,
-            f"People: {len(unique_ids)}",
+            f"People: {max_id}",
             (550, 45),
             cv2.FONT_HERSHEY_SIMPLEX,
             1.0,
-            (0, 255, 0),
+            (0, 255, 0),  # Green in BGR
             3,
         )
 
         out.write(frame)
         t_frame = time.perf_counter() - t_start
 
-        # Print per-frame index and runtime per README requirement
-        print(f"Frame {frame_number:04d} | Processing Time: {t_frame:.4f}s | People Counted: {len(unique_ids)}")
+        print(
+            f"Frame {frame_number:04d} | "
+            f"Processing Time: {t_frame:.4f}s | "
+            f"People Counted: {max_id}"
+        )
 
     cap.release()
     out.release()
 
     print("\nPhase 2 Complete.")
-    print(f"Total Unique People Counted: {len(unique_ids)}")
+    print(f"Total People Counted: {max_id}")
     print(f"Annotated video saved as: {args.output}")
 
 

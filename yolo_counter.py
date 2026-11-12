@@ -19,9 +19,10 @@ from sort import Sort
 #Total People Counted: 107
 #Annotated video saved as: mot_vid/MOTS20-09-result.mp4
 
-#finally got the code to correctly match the current people count to match the ID displayed
+#Tracks cumulative unique people by recording the highest SORT track ID assigned so far
 
 def parse_arguments():
+    #set up and read command-line flags and default file paths for ease of calling the script
     parser = argparse.ArgumentParser(
         description="EEC174 Phase 2: YOLOv3 Object Tracking & People Counter"
     )
@@ -71,6 +72,7 @@ def parse_arguments():
 
 
 def load_model(cfg_path, weights_path):
+    #again load the model and find its output layers just like phase 1
     if not os.path.exists(cfg_path):
         raise FileNotFoundError(f"Configuration file not found: {cfg_path}")
     if not os.path.exists(weights_path):
@@ -89,6 +91,7 @@ def load_model(cfg_path, weights_path):
 
 
 def load_classes(labels_path):
+    #read class names from coco.names
     if not os.path.exists(labels_path):
         raise FileNotFoundError(f"Labels file not found: {labels_path}")
     with open(labels_path, "r", encoding="utf-8") as f:
@@ -102,6 +105,7 @@ def main():
     if not os.path.exists(args.video):
         raise FileNotFoundError(f"Input video not found: {args.video}")
 
+    #ensure output folder exists (mot_vid)
     os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
 
     # 1. Load network and identify 'person' class ID
@@ -120,6 +124,7 @@ def main():
     if fps == 0 or np.isnan(fps):
         fps = 30.0
 
+    #setup the output video writer (.mp4 format)
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     out = cv2.VideoWriter(args.output, fourcc, fps, (width, height))
 
@@ -131,15 +136,16 @@ def main():
     print(f"Tracking started on: {args.video}")
     print(f"Target class: 'person' (ID: {person_class_id}) | Saving to: {args.output}\n")
 
+    #read and process the video one frame at a time
     while True:
         ret, frame = cap.read()
         if not ret:
-            break
+            break #end of video reached
 
         frame_number += 1
         t_start = time.perf_counter()
 
-        # Generate 416x416 blob for Darknet
+        # Generate a normalized 416x416 RGB blob for YOLO
         blob = cv2.dnn.blobFromImage(
             frame, 1 / 255.0, (416, 416), swapRB=True, crop=False
         )
@@ -149,7 +155,7 @@ def main():
         boxes = []
         confidences = []
 
-        # Parse detections and filter strictly for 'person'
+        # Parse detections and filter strictly for 'person' above the confidence threshold
         for output in layer_outputs:
             for detection in output:
                 scores = detection[5:]
@@ -165,7 +171,7 @@ def main():
                     boxes.append([x_min, y_min, int(b_w), int(b_h)])
                     confidences.append(confidence)
 
-        # Apply Non-Maximum Suppression
+        # Apply Non-Maximum Suppression (remove duplicate overlapping boxes)
         indices = cv2.dnn.NMSBoxes(
             boxes, confidences, args.conf_thresh, args.nms_thresh
         )
@@ -185,12 +191,13 @@ def main():
 
         dets_array = np.array(dets_for_sort) if dets_for_sort else np.empty((0, 5))
 
-        # Update SORT tracker
+        # Update SORT tracker to match people across frames and assign persistent IDs
         trackers = mot_tracker.update(dets_array)
 
-        # Draw yellow bounding boxes and numeric track IDs
+        # Draw yellow bounding boxes and numeric track IDs onto the frame
         for d in trackers:
             x1, y1, x2, y2, track_id = d
+            #update highest ID seen so the overhead counter matches the box IDs
             track_id = int(track_id)
             max_id = max(max_id, track_id)
 
@@ -211,17 +218,18 @@ def main():
                 2,
             )
 
-        # Draw centered green cumulative person count overlay
+        # Draw green cumulative person count overlay
         cv2.putText(
             frame,
             f"People: {max_id}",
-            (550, 45),
+            (550, 45), #placed like center right of the video
             cv2.FONT_HERSHEY_SIMPLEX,
             1.0,
             (0, 255, 0),  # Green in BGR
             3,
         )
 
+        #save the annotated frame to the output video file
         out.write(frame)
         t_frame = time.perf_counter() - t_start
 
@@ -231,6 +239,7 @@ def main():
             f"People Counted: {max_id}"
         )
 
+    #release video file handles once all frames are processed
     cap.release()
     out.release()
 
